@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Map, History, Settings, LogOut, Sprout, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Map, History, Settings, LogOut, Sprout, Menu, X, Bell } from 'lucide-react';
 
 const DashboardLayout = () => {
   const navigate = useNavigate();
@@ -17,9 +17,10 @@ const DashboardLayout = () => {
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Resumen General', path: '/dashboard/resumen' },
-    { icon: Map, label: 'Mis Lotes', path: '/dashboard/lotes' },
-    { icon: History, label: 'Historial de Cultivos', path: '/dashboard/historial' },
-    { icon: Settings, label: 'Configuración', path: '/dashboard/configuracion' },
+    { icon: Bell,            label: 'Alertas',         path: '/dashboard/alertas', badge: true },
+    { icon: Map,             label: 'Mis Lotes',       path: '/dashboard/lotes' },
+    { icon: History,         label: 'Historial',       path: '/dashboard/historial' },
+    { icon: Settings,        label: 'Configuración',   path: '/dashboard/configuracion' },
   ];
 
   const SidebarContent = () => (
@@ -45,7 +46,12 @@ const DashboardLayout = () => {
                 }`
               }
             >
-              <item.icon size={20} className="mr-4" />
+              <div className="relative mr-4">
+                <item.icon size={20} />
+                {item.badge && (
+                  <span className="absolute -top-1.5 -right-1.5 h-2.5 w-2.5 rounded-full bg-red-500 border-2 border-white" />
+                )}
+              </div>
               {item.label}
             </NavLink>
           ))}

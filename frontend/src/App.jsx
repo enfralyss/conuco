@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Login from './pages/Login';
 import DashboardLayout from './layouts/DashboardLayout';
 import ResumenGeneral from './pages/ResumenGeneral';
+import Alertas from './pages/Alertas';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
         {/* Panel de Control Privado */}
         <Route path="/dashboard" element={<DashboardLayout />}>
            <Route path="resumen" element={<ResumenGeneral />} />
+           <Route path="alertas" element={<Alertas />} />
            {/* Mock de las siguientes páginas para evitar errores 404 */}
            <Route path="lotes" element={<div className="p-8"><h1>Mis Lotes en Desarrollo...</h1></div>} />
            <Route path="historial" element={<div className="p-8"><h1>Historial en Desarrollo...</h1></div>} />
