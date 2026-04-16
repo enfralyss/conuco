@@ -4,6 +4,8 @@ import Login from './pages/Login';
 import DashboardLayout from './layouts/DashboardLayout';
 import ResumenGeneral from './pages/ResumenGeneral';
 import Alertas from './pages/Alertas';
+import MisLotes from './pages/MisLotes';
+import Historial from './pages/Historial';
 
 function App() {
   return (
@@ -19,9 +21,8 @@ function App() {
         <Route path="/dashboard" element={<DashboardLayout />}>
            <Route path="resumen" element={<ResumenGeneral />} />
            <Route path="alertas" element={<Alertas />} />
-           {/* Mock de las siguientes páginas para evitar errores 404 */}
-           <Route path="lotes" element={<div className="p-8"><h1>Mis Lotes en Desarrollo...</h1></div>} />
-           <Route path="historial" element={<div className="p-8"><h1>Historial en Desarrollo...</h1></div>} />
+           <Route path="lotes" element={<MisLotes />} />
+           <Route path="historial" element={<Historial />} />
            <Route path="configuracion" element={<div className="p-8"><h1>Configuración en Desarrollo...</h1></div>} />
         </Route>
 
