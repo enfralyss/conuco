@@ -1,90 +1,86 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MapPin, Thermometer, Droplets, FlaskConical, Plus, X, CheckCircle, AlertTriangle, XCircle, ChevronRight, Sprout } from 'lucide-react';
-
-const LOTES_MOCK = [
-  {
-    id: 'Lote-001', cultivo: 'Maíz Amarillo', etapa: 'Siembra Tardía',
-    area: 2.4, ubicacion: 'Sector Norte, Parcela A',
-    fechaSiembra: '2026-02-10', salud: 'optima',
-    sensores: { temperatura: 26.3, humedad: 68.5, ph: 6.4 },
-    imagen: '🌽'
-  },
-  {
-    id: 'Lote-002', cultivo: 'Habichuelas Rojas', etapa: 'Desarrollo Vegetativo',
-    area: 1.8, ubicacion: 'Sector Sur, Parcela B',
-    fechaSiembra: '2026-01-25', salud: 'advertencia',
-    sensores: { temperatura: 29.7, humedad: 43.2, ph: 6.8 },
-    imagen: '🫘'
-  },
-  {
-    id: 'Lote-003', cultivo: 'Plátano Barahonero', etapa: 'Floración',
-    area: 3.1, ubicacion: 'Sector Este, Parcela C',
-    fechaSiembra: '2025-11-05', salud: 'optima',
-    sensores: { temperatura: 27.1, humedad: 71.0, ph: 6.2 },
-    imagen: '🍌'
-  },
-  {
-    id: 'Lote-004', cultivo: 'Yuca Blanca', etapa: 'Engorde',
-    area: 0.9, ubicacion: 'Sector Oeste, Parcela D',
-    fechaSiembra: '2025-12-18', salud: 'critica',
-    sensores: { temperatura: 33.5, humedad: 28.0, ph: 7.8 },
-    imagen: '🌿'
-  },
-];
+import { api } from '../lib/api';
 
 const SALUD_CONFIG = {
-  optima:      { label: 'Óptima',      bg: 'bg-green-100',  text: 'text-green-700',  border: 'border-green-400', Icono: CheckCircle,    dot: 'bg-green-500'  },
-  advertencia: { label: 'Advertencia', bg: 'bg-amber-100',  text: 'text-amber-700',  border: 'border-amber-400', Icono: AlertTriangle,  dot: 'bg-amber-500'  },
-  critica:     { label: 'Crítica',     bg: 'bg-red-100',    text: 'text-red-700',    border: 'border-red-400',   Icono: XCircle,        dot: 'bg-red-500'    },
+  optima:      { label: 'Óptima',      bg: 'bg-green-100',  text: 'text-green-700',  border: 'border-green-400', Icono: CheckCircle,   dot: 'bg-green-500'  },
+  advertencia: { label: 'Advertencia', bg: 'bg-amber-100',  text: 'text-amber-700',  border: 'border-amber-400', Icono: AlertTriangle, dot: 'bg-amber-500'  },
+  critica:     { label: 'Crítica',     bg: 'bg-red-100',    text: 'text-red-700',    border: 'border-red-400',   Icono: XCircle,       dot: 'bg-red-500'    },
 };
 
 function diasDesde(fechaStr) {
-  const diff = Date.now() - new Date(fechaStr).getTime();
-  return Math.floor(diff / (1000 * 60 * 60 * 24));
+  return Math.floor((Date.now() - new Date(fechaStr).getTime()) / (1000 * 60 * 60 * 24));
 }
 
 export default function MisLotes() {
-  const [lotes, setLotes] = useState(LOTES_MOCK);
-  const [loteDetalle, setLoteDetalle] = useState(null);
+  const navigate = useNavigate();
+  const [lotes, setLotes]               = useState([]);
+  const [cargando, setCargando]         = useState(true);
   const [mostrarModal, setMostrarModal] = useState(false);
-  const [filtro, setFiltro] = useState('Todos');
+  const [guardando, setGuardando]       = useState(false);
+  const [filtro, setFiltro]             = useState('Todos');
+  const [error, setError]               = useState('');
   const [form, setForm] = useState({ cultivo: '', ubicacion: '', area: '', etapa: 'Preparación', imagen: '🌱' });
 
+  useEffect(() => {
+    api.get('/api/lotes')
+      .then(setLotes)
+      .catch(() => setError('No se pudo conectar al servidor'))
+      .finally(() => setCargando(false));
+  }, []);
+
   const filtrados = lotes.filter(l => {
-    if (filtro === 'Óptimos')      return l.salud === 'optima';
-    if (filtro === 'Advertencia')  return l.salud === 'advertencia';
-    if (filtro === 'Críticos')     return l.salud === 'critica';
+    if (filtro === 'Óptimos')     return l.salud === 'optima';
+    if (filtro === 'Advertencia') return l.salud === 'advertencia';
+    if (filtro === 'Críticos')    return l.salud === 'critica';
     return true;
   });
 
-  const agregarLote = () => {
+  const agregarLote = async () => {
     if (!form.cultivo || !form.ubicacion || !form.area) return;
-    const nuevo = {
-      id: `Lote-00${lotes.length + 1}`,
-      cultivo: form.cultivo, etapa: form.etapa,
-      area: parseFloat(form.area), ubicacion: form.ubicacion,
-      fechaSiembra: new Date().toISOString().split('T')[0],
-      salud: 'optima',
-      sensores: { temperatura: 25 + Math.random() * 4, humedad: 60 + Math.random() * 10, ph: 6.2 + Math.random() * 0.6 },
-      imagen: form.imagen
-    };
-    setLotes(prev => [...prev, nuevo]);
-    setForm({ cultivo: '', ubicacion: '', area: '', etapa: 'Preparación', imagen: '🌱' });
-    setMostrarModal(false);
+    setGuardando(true);
+    try {
+      const creado = await api.post('/api/lotes', {
+        cultivo:      form.cultivo,
+        ubicacion:    form.ubicacion,
+        area:         parseFloat(form.area),
+        etapa:        form.etapa,
+        imagen:       form.imagen,
+        fechaSiembra: new Date().toISOString().split('T')[0],
+      });
+      setLotes(prev => [...prev, creado]);
+      setForm({ cultivo: '', ubicacion: '', area: '', etapa: 'Preparación', imagen: '🌱' });
+      setMostrarModal(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGuardando(false);
+    }
   };
+
+  if (cargando) return (
+    <div className="flex items-center justify-center py-20 text-slate-400 text-sm">Cargando lotes…</div>
+  );
 
   return (
     <div className="w-full">
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium">
+          {error}
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Mis Lotes</h1>
-          <p className="text-slate-500 mt-1">{lotes.length} parcelas registradas · Área total: {lotes.reduce((s, l) => s + l.area, 0).toFixed(1)} ha</p>
+          <p className="text-slate-500 mt-1">
+            {lotes.length} parcelas registradas · Área total: {lotes.reduce((s, l) => s + (l.area || 0), 0).toFixed(1)} ha
+          </p>
         </div>
-        <button
-          onClick={() => setMostrarModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition-colors"
-        >
+        <button onClick={() => setMostrarModal(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition-colors">
           <Plus size={16} /> Nuevo Lote
         </button>
       </div>
@@ -99,10 +95,10 @@ export default function MisLotes() {
         ))}
       </div>
 
-      {/* Grid de lotes */}
+      {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-5">
         {filtrados.map(lote => {
-          const sc = SALUD_CONFIG[lote.salud];
+          const sc = SALUD_CONFIG[lote.salud] ?? SALUD_CONFIG.optima;
           return (
             <div key={lote.id} className={`bg-white rounded-2xl border-l-4 ${sc.border} border-y border-r border-slate-100 shadow-sm hover:-translate-y-1 transition-transform duration-200`}>
               <div className="p-5">
@@ -129,17 +125,14 @@ export default function MisLotes() {
                   <span>{lote.area} ha</span>
                 </div>
 
-                {/* Sensores mini */}
                 <div className="grid grid-cols-3 gap-2 mb-4">
                   <SensorPill icono={<Thermometer size={14} />} valor={`${lote.sensores.temperatura.toFixed(1)}°C`} color="orange" />
                   <SensorPill icono={<Droplets size={14} />}     valor={`${lote.sensores.humedad.toFixed(1)}%`}    color="blue"   />
                   <SensorPill icono={<FlaskConical size={14} />} valor={`pH ${lote.sensores.ph.toFixed(1)}`}       color="purple" />
                 </div>
 
-                <button
-                  onClick={() => setLoteDetalle(lote)}
-                  className="w-full flex items-center justify-center gap-1 py-2 text-sm font-semibold text-green-700 bg-green-50 hover:bg-green-100 rounded-xl transition-colors"
-                >
+                <button onClick={() => navigate(`/dashboard/lotes/${lote.id}`)}
+                  className="w-full flex items-center justify-center gap-1 py-2 text-sm font-semibold text-green-700 bg-green-50 hover:bg-green-100 rounded-xl transition-colors">
                   Ver detalle <ChevronRight size={16} />
                 </button>
               </div>
@@ -148,34 +141,11 @@ export default function MisLotes() {
         })}
       </div>
 
-      {/* Modal detalle */}
-      {loteDetalle && (
-        <Modal onClose={() => setLoteDetalle(null)} title={`${loteDetalle.imagen} ${loteDetalle.cultivo}`}>
-          <div className="space-y-4 text-sm">
-            <div className="grid grid-cols-2 gap-3">
-              <InfoRow label="ID Lote"       value={loteDetalle.id} />
-              <InfoRow label="Etapa"         value={loteDetalle.etapa} />
-              <InfoRow label="Área"          value={`${loteDetalle.area} ha`} />
-              <InfoRow label="Días sembrado" value={`${diasDesde(loteDetalle.fechaSiembra)} días`} />
-              <InfoRow label="Fecha siembra" value={loteDetalle.fechaSiembra} />
-              <InfoRow label="Ubicación"     value={loteDetalle.ubicacion} />
-            </div>
-            <hr className="border-slate-100" />
-            <p className="font-semibold text-slate-700">Últimas lecturas de sensores</p>
-            <div className="grid grid-cols-3 gap-3">
-              <MetricBox label="Temperatura" value={`${loteDetalle.sensores.temperatura.toFixed(1)}°C`} color="orange" />
-              <MetricBox label="Humedad"     value={`${loteDetalle.sensores.humedad.toFixed(1)}%`}    color="blue"   />
-              <MetricBox label="pH"          value={loteDetalle.sensores.ph.toFixed(2)}               color="purple" />
-            </div>
-          </div>
-        </Modal>
-      )}
-
       {/* Modal nuevo lote */}
       {mostrarModal && (
         <Modal onClose={() => setMostrarModal(false)} title="Registrar Nuevo Lote">
           <div className="space-y-3 text-sm">
-            <Field label="Tipo de cultivo" value={form.cultivo} onChange={v => setForm(p => ({ ...p, cultivo: v }))} placeholder="Ej: Maíz Amarillo" />
+            <Field label="Tipo de cultivo" value={form.cultivo}   onChange={v => setForm(p => ({ ...p, cultivo: v }))}   placeholder="Ej: Maíz Amarillo" />
             <Field label="Ubicación"       value={form.ubicacion} onChange={v => setForm(p => ({ ...p, ubicacion: v }))} placeholder="Ej: Sector Norte, Parcela E" />
             <div className="grid grid-cols-2 gap-3">
               <Field label="Área (ha)" value={form.area} onChange={v => setForm(p => ({ ...p, area: v }))} placeholder="Ej: 1.5" type="number" />
@@ -183,7 +153,7 @@ export default function MisLotes() {
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Etapa inicial</label>
                 <select value={form.etapa} onChange={e => setForm(p => ({ ...p, etapa: e.target.value }))}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-                  {['Preparación', 'Siembra', 'Germinación', 'Desarrollo Vegetativo', 'Floración', 'Engorde', 'Cosecha'].map(e => (
+                  {['Preparación','Siembra','Germinación','Desarrollo Vegetativo','Floración','Engorde','Cosecha'].map(e => (
                     <option key={e}>{e}</option>
                   ))}
                 </select>
@@ -200,9 +170,9 @@ export default function MisLotes() {
                 ))}
               </div>
             </div>
-            <button onClick={agregarLote}
-              className="w-full py-2.5 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-colors mt-2">
-              Registrar Lote
+            <button onClick={agregarLote} disabled={guardando}
+              className="w-full py-2.5 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-colors mt-2 disabled:opacity-60">
+              {guardando ? 'Registrando…' : 'Registrar Lote'}
             </button>
           </div>
         </Modal>
@@ -223,24 +193,6 @@ function SensorPill({ icono, valor, color }) {
   return (
     <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold ${COLOR_MAP[color]}`}>
       {icono} {valor}
-    </div>
-  );
-}
-
-function MetricBox({ label, value, color }) {
-  return (
-    <div className={`rounded-xl p-3 text-center ${COLOR_MAP[color]} bg-opacity-60`}>
-      <p className="text-lg font-extrabold">{value}</p>
-      <p className="text-xs font-semibold opacity-80 mt-0.5">{label}</p>
-    </div>
-  );
-}
-
-function InfoRow({ label, value }) {
-  return (
-    <div className="bg-slate-50 rounded-xl px-3 py-2">
-      <p className="text-xs text-slate-400 font-semibold">{label}</p>
-      <p className="font-semibold text-slate-700 mt-0.5">{value}</p>
     </div>
   );
 }

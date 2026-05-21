@@ -6,6 +6,7 @@ import Alertas from './pages/Alertas';
 import MisLotes from './pages/MisLotes';
 import Historial from './pages/Historial';
 import Configuracion from './pages/Configuracion';
+import LoteDetalle from './pages/LoteDetalle';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
            <Route path="resumen" element={<ResumenGeneral />} />
            <Route path="alertas" element={<Alertas />} />
            <Route path="lotes" element={<MisLotes />} />
+           <Route path="lotes/:id" element={<LoteDetalle />} />
            <Route path="historial" element={<Historial />} />
            <Route path="configuracion" element={<Configuracion />} />
         </Route>
