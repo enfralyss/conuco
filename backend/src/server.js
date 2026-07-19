@@ -70,35 +70,57 @@ app.get('/api/sensores/historial', (req, res) => {
 });
 
 // ── Ingesta de Lecturas IoT (Para integración física con ESP32 / Arduino) ──────
+// Tipos de sensor: TEMPERATURA | HUMEDAD_SUELO | HUMEDAD_AMBIENTAL | LUZ_SOLAR
+// Tipo especial ADVERTENCIA: el nodo reporta un fallo de hardware (sensor
+// desconectado, lectura NaN, etc.) → genera una alerta, NO una lectura.
+const SENSOR_DISPLAY = { 'ESP32-A1': 'temperatura', 'ESP32-A2': 'humedad', 'ESP32-A3': 'ambiental' };
+
 app.post('/api/sensores/ingesta', async (req, res) => {
-  const { sensorId, tipo, valor, unidad, loteId } = req.body;
-  
+  const { sensorId, tipo, valor, unidad, loteId, mensaje } = req.body;
+
   if (!sensorId || tipo == null || valor == null) {
     return res.status(400).json({ status: 'error', mensaje: 'sensorId, tipo y valor son requeridos' });
   }
 
   try {
+    const tipoUp = String(tipo).toUpperCase();
+
+    // Auto-registro del sensor si no existe (aplica a lecturas y advertencias)
+    if (pool) {
+      const { rows } = await pool.query('SELECT id FROM sensores WHERE id = $1', [sensorId]);
+      if (rows.length === 0) {
+        await pool.query(
+          'INSERT INTO sensores (id, tipo, lote_id, activo) VALUES ($1, $2, $3, $4)',
+          [sensorId, tipoUp === 'ADVERTENCIA' ? 'DESCONOCIDO' : tipoUp, loteId || 'Lote-001', true]
+        );
+      }
+    }
+
+    // Advertencia de hardware del nodo → alerta, sin registrar lectura
+    if (tipoUp === 'ADVERTENCIA') {
+      await alertasRepo.add(
+        SENSOR_DISPLAY[sensorId] || 'hardware',
+        'advertencia',
+        mensaje || `Advertencia de hardware del nodo ${sensorId}`,
+        sensorId,
+        loteId || 'Lote-001'
+      );
+      return res.status(201).json({ status: 'ok', mensaje: 'Advertencia de hardware registrada' });
+    }
+
     const valFloat = parseFloat(valor);
-    
+
     // 1. Alimentar las variables en caliente en el simulador en memoria
-    if (sensorId === 'ESP32-A1' || tipo.toUpperCase() === 'TEMPERATURA') {
+    if (sensorId === 'ESP32-A1' || tipoUp === 'TEMPERATURA') {
       sensorTemp.registrarLectura(valFloat);
-    } else if (sensorId === 'ESP32-A2' || tipo.toUpperCase() === 'HUMEDAD_SUELO' || tipo.toUpperCase() === 'HUMEDAD') {
+    } else if (sensorId === 'ESP32-A2' || tipoUp === 'HUMEDAD_SUELO' || tipoUp === 'HUMEDAD') {
       sensorHum.registrarLectura(valFloat);
-    } else if (sensorId === 'ESP32-A3' || tipo.toUpperCase() === 'HUMEDAD_AMBIENTAL' || tipo.toUpperCase() === 'LUZ_SOLAR') {
+    } else if (sensorId === 'ESP32-A3' || tipoUp === 'HUMEDAD_AMBIENTAL' || tipoUp === 'LUZ_SOLAR') {
       sensorAmb.registrarLectura(valFloat);
     }
 
     // 2. Si la BD PostgreSQL está conectada, almacenar
     if (pool) {
-      // Auto-registro del sensor si no existe
-      const { rows } = await pool.query('SELECT id FROM sensores WHERE id = $1', [sensorId]);
-      if (rows.length === 0) {
-        await pool.query(
-          'INSERT INTO sensores (id, tipo, lote_id, activo) VALUES ($1, $2, $3, $4)',
-          [sensorId, tipo.toUpperCase(), loteId || 'Lote-001', true]
-        );
-      }
       
       // Registrar lectura (lote_id desnormalizado — lo usa la exportación a Excel)
       await pool.query(
