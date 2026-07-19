@@ -24,9 +24,10 @@ class SimuladorIoT {
     
     // Estados iniciales lógicos para empezar la simulación base
     this.estadoActual = {
-      TEMPERATURA: 25.0,  // °C
-      HUMEDAD_SUELO: 60.0, // %
-      PH: 6.5             // pH
+      TEMPERATURA: 25.0,          // °C
+      HUMEDAD_SUELO: 60.0,        // %
+      HUMEDAD_AMBIENTAL: 55.0,    // % (DHT22)
+      LUZ_SOLAR: 30000,           // lux (BH1750)
     };
   }
 
@@ -61,10 +62,17 @@ class SimuladorIoT {
            valorLeido = this.estadoActual.HUMEDAD_SUELO;
            unidad = '%';
           break;
-        case 'PH':
-          this.estadoActual.PH = GeneradorAleatorio.derivar(this.estadoActual.PH, 0.05, 4.0, 9.0);
-          valorLeido = this.estadoActual.PH;
-          unidad = 'pH';
+        case 'HUMEDAD_AMBIENTAL':
+          // Humedad del aire (DHT22): varía con más soltura que la del suelo
+          this.estadoActual.HUMEDAD_AMBIENTAL = GeneradorAleatorio.derivar(this.estadoActual.HUMEDAD_AMBIENTAL, 1.5, 20, 95);
+          valorLeido = this.estadoActual.HUMEDAD_AMBIENTAL;
+          unidad = '%';
+          break;
+        case 'LUZ_SOLAR':
+          // Luz solar (BH1750): fluctúa por nubes y hora del día
+          this.estadoActual.LUZ_SOLAR = GeneradorAleatorio.derivar(this.estadoActual.LUZ_SOLAR, 2000, 0, 65000);
+          valorLeido = this.estadoActual.LUZ_SOLAR;
+          unidad = 'lux';
           break;
       }
 
@@ -92,9 +100,9 @@ class SimuladorIoT {
 if (require.main === module) {
   const sensorTemp = new Sensor('ESP32-A1', 'TEMPERATURA', 'Lote-001');
   const sensorHum = new Sensor('ESP32-A2', 'HUMEDAD_SUELO', 'Lote-001');
-  const sensorPh = new Sensor('ESP32-A3', 'PH', 'Lote-001');
+  const sensorAmb = new Sensor('ESP32-A3', 'HUMEDAD_AMBIENTAL', 'Lote-001');
 
-  const simulador = new SimuladorIoT([sensorTemp, sensorHum, sensorPh]);
+  const simulador = new SimuladorIoT([sensorTemp, sensorHum, sensorAmb]);
   simulador.iniciarSimulacion(2000); // 2 segundos para test rápido
 }
 

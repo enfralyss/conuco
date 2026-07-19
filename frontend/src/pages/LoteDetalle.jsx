@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, MapPin, Sprout, Thermometer, Droplets, FlaskConical,
+  ArrowLeft, MapPin, Sprout, Thermometer, Droplets,
   CheckCircle, AlertTriangle, XCircle, Clock, Wifi, WifiOff,
   TrendingUp, TrendingDown, Minus, Trash2, Download, Sparkles, Info
 } from 'lucide-react';
+import { SENSOR_AMBIENTAL, ambFueraDeIdeal, formatoAmbiental } from '../config/sensorAmbiental';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer
@@ -36,7 +37,7 @@ function useIoTEnVivo(loteId) {
             time:        new Date(l.timestamp).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
             temperatura: l.temperatura,
             humedad:     l.humedad,
-            ph:          l.ph,
+            ambiental:   l.ambiental,
           }]);
         })
         .catch(() => setConectado(false));
@@ -63,7 +64,7 @@ const NIVEL_STYLES = {
 const SENSOR_META = {
   temperatura: { label: 'Temperatura', Icono: Thermometer, color: 'text-orange-500' },
   humedad:     { label: 'Humedad',     Icono: Droplets,    color: 'text-blue-500'   },
-  ph:          { label: 'pH',          Icono: FlaskConical,color: 'text-purple-500' },
+  ambiental:   { label: SENSOR_AMBIENTAL.labelCorto, Icono: SENSOR_AMBIENTAL.Icono, color: SENSOR_AMBIENTAL.colorClass },
 };
 
 const ESTADO_CONFIG = {
@@ -99,7 +100,7 @@ const TEND = {
 // ── Motor de Recomendación Heurística (Asistente Agrónomo) ────────────────────
 function obtenerRecomendacion(lecturas) {
   if (!lecturas) return null;
-  const { temperatura, humedad, ph } = lecturas;
+  const { temperatura, humedad, ambiental } = lecturas;
   
   if (humedad < 45) {
     return {
@@ -127,36 +128,68 @@ function obtenerRecomendacion(lecturas) {
     };
   }
   
-  if (ph < 5.5) {
-    return {
-      titulo: 'Corrección de pH del Suelo',
-      dosis: 'Aplicación de Encalado Corrector',
-      analisis: `El pH del suelo es ácido (${ph.toFixed(2)}), lo que limita la absorción de nutrientes esenciales como fósforo, potasio y calcio.`,
-      accion: 'Considerar aplicación controlada de carbonato de calcio (cal agrícola) para elevar el pH paulatinamente.',
-      severidad: 'suelo_acido',
-      color: 'from-purple-50 to-indigo-50/30 border-purple-200 text-purple-700',
-      badgeBg: 'bg-purple-100 text-purple-800',
-      iconColor: 'text-purple-500',
-    };
+  // Reglas del sensor ambiental — DHT22 (humedad del aire)
+  if (SENSOR_AMBIENTAL.tipo === 'dht22') {
+    if (ambiental > SENSOR_AMBIENTAL.rangoIdeal.max) {
+      return {
+        titulo: 'Riesgo de Enfermedades Fúngicas',
+        dosis: 'Monitoreo Fitosanitario Preventivo',
+        analisis: `La humedad ambiental es alta (${formatoAmbiental(ambiental)}), condición que favorece hongos como la roya y el tizón foliar en el maíz.`,
+        accion: 'Inspeccionar el follaje, mejorar la ventilación entre hileras y evaluar una aplicación preventiva de fungicida.',
+        severidad: 'humedad_alta',
+        color: 'from-cyan-50 to-sky-50/30 border-cyan-200 text-cyan-700',
+        badgeBg: 'bg-cyan-100 text-cyan-800',
+        iconColor: 'text-cyan-500',
+      };
+    }
+
+    if (ambiental < SENSOR_AMBIENTAL.rangoIdeal.min) {
+      return {
+        titulo: 'Aire Seco — Alta Evapotranspiración',
+        dosis: 'Reforzar Reserva Hídrica',
+        analisis: `La humedad ambiental es baja (${formatoAmbiental(ambiental)}), lo que acelera la pérdida de agua por evapotranspiración de la planta y del suelo.`,
+        accion: 'Aumentar la frecuencia de riego ligero y considerar acolchado (mulch) para conservar la humedad del suelo.',
+        severidad: 'aire_seco',
+        color: 'from-indigo-50 to-blue-50/30 border-indigo-200 text-indigo-700',
+        badgeBg: 'bg-indigo-100 text-indigo-800',
+        iconColor: 'text-indigo-500',
+      };
+    }
   }
 
-  if (ph > 7.2) {
-    return {
-      titulo: 'Corrección de pH del Suelo',
-      dosis: 'Aplicación de Enmienda Ácida',
-      analisis: `El pH del suelo es alcalino (${ph.toFixed(2)}), lo que puede inducir deficiencias de microelementos como hierro y zinc.`,
-      accion: 'Considerar adición de yeso agrícola, azufre elemental o materia orgánica compostada para regular el pH.',
-      severidad: 'suelo_alcalino',
-      color: 'from-indigo-50 to-blue-50/30 border-indigo-200 text-indigo-700',
-      badgeBg: 'bg-indigo-100 text-indigo-800',
-      iconColor: 'text-indigo-500',
-    };
+  // Reglas del sensor ambiental — BH1750 (luz solar)
+  if (SENSOR_AMBIENTAL.tipo === 'bh1750') {
+    if (ambiental < SENSOR_AMBIENTAL.rangoIdeal.min) {
+      return {
+        titulo: 'Radiación Solar Insuficiente',
+        dosis: 'Revisión de Sombreado',
+        analisis: `La luz solar registrada es baja (${formatoAmbiental(ambiental)}), lo que reduce la tasa fotosintética del maíz.`,
+        accion: 'Verificar sombras de árboles o estructuras cercanas y controlar malezas altas que compitan por luz.',
+        severidad: 'luz_baja',
+        color: 'from-slate-50 to-blue-50/30 border-slate-200 text-slate-700',
+        badgeBg: 'bg-slate-100 text-slate-800',
+        iconColor: 'text-slate-500',
+      };
+    }
+
+    if (ambiental > SENSOR_AMBIENTAL.rangoIdeal.max) {
+      return {
+        titulo: 'Radiación Solar Intensa',
+        dosis: 'Vigilar Estrés por Calor',
+        analisis: `La radiación solar es muy intensa (${formatoAmbiental(ambiental)}), lo que puede provocar estrés térmico e hídrico en horas pico.`,
+        accion: 'Reforzar el riego en la mañana y vigilar signos de enrollamiento de hojas al mediodía.',
+        severidad: 'luz_alta',
+        color: 'from-amber-50 to-yellow-50/30 border-amber-200 text-amber-700',
+        badgeBg: 'bg-amber-100 text-amber-800',
+        iconColor: 'text-amber-500',
+      };
+    }
   }
-  
+
   return {
     titulo: 'Condiciones de Cultivo Óptimas',
     dosis: 'Sin riego necesario',
-    analisis: `Humedad de suelo estable (${humedad.toFixed(1)}%) y pH balanceado (${ph.toFixed(2)}) bajo temperatura templada (${temperatura.toFixed(1)}°C).`,
+    analisis: `Humedad de suelo estable (${humedad.toFixed(1)}%) y ${SENSOR_AMBIENTAL.label.toLowerCase()} en rango (${formatoAmbiental(ambiental)}) bajo temperatura templada (${temperatura.toFixed(1)}°C).`,
     accion: 'Mantener monitoreo pasivo. Los niveles actuales garantizan un crecimiento saludable.',
     severidad: 'optima',
     color: 'from-emerald-50 to-teal-50/30 border-emerald-200 text-emerald-700',
@@ -235,7 +268,7 @@ export default function LoteDetalle() {
 
   // Lecturas a mostrar: IoT en vivo (Lote-001) o estáticas del lote
   const lecturas = ultima
-    ? { temperatura: ultima.temperatura, humedad: ultima.humedad, ph: ultima.ph }
+    ? { temperatura: ultima.temperatura, humedad: ultima.humedad, ambiental: ultima.ambiental }
     : lote.sensores;
 
   return (
@@ -319,12 +352,12 @@ export default function LoteDetalle() {
             alerta={lecturas.humedad < 50}
           />
           <SensorCard
-            title="Nivel de pH"   value={lecturas.ph.toFixed(2)}
-            icono={<FlaskConical size={22} />}
-            tend={tieneIoT ? tendencia(iotData, 'ph') : 'estable'}
-            colorClass="text-purple-500" bgClass="bg-purple-50" borderClass="border-purple-500"
-            rango="Ideal: 5.5–7.0"
-            alerta={lecturas.ph < 5.5 || lecturas.ph > 7.0}
+            title={SENSOR_AMBIENTAL.label}   value={formatoAmbiental(lecturas.ambiental)}
+            icono={<SENSOR_AMBIENTAL.Icono size={22} />}
+            tend={tieneIoT ? tendencia(iotData, 'ambiental') : 'estable'}
+            colorClass={SENSOR_AMBIENTAL.colorClass} bgClass={SENSOR_AMBIENTAL.bgClass} borderClass={SENSOR_AMBIENTAL.borderClass}
+            rango={SENSOR_AMBIENTAL.rangoTexto}
+            alerta={ambFueraDeIdeal(lecturas.ambiental)}
           />
         </div>
 
@@ -404,7 +437,7 @@ export default function LoteDetalle() {
                       Dato Clave
                     </p>
                     <p className="text-sm font-extrabold text-slate-700 mt-0.5">
-                      Hum: {lecturas.humedad.toFixed(1)}% | pH: {lecturas.ph.toFixed(2)}
+                      Hum: {lecturas.humedad.toFixed(1)}% | {SENSOR_AMBIENTAL.labelCorto}: {formatoAmbiental(lecturas.ambiental)}
                     </p>
                   </div>
                 </div>

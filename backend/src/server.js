@@ -25,12 +25,23 @@ app.use(cors());
 app.use(express.json());
 
 // ── Simulador IoT ────────────────────────────────────────────────────────────
+// SIMULADOR_ACTIVO=false → no genera lecturas falsas (usar cuando el ESP32
+// físico envía datos reales por /api/sensores/ingesta; si no, las pisaría).
+const SIMULADOR_ACTIVO = process.env.SIMULADOR_ACTIVO !== 'false';
+
 const sensorTemp = new Sensor('ESP32-A1', 'TEMPERATURA',   'Lote-001');
 const sensorHum  = new Sensor('ESP32-A2', 'HUMEDAD_SUELO', 'Lote-001');
-const sensorPh   = new Sensor('ESP32-A3', 'PH',            'Lote-001');
+// Tercer sensor: DHT22 (humedad del aire) o BH1750 (luz solar).
+// Descomenta el que corresponda — igual que en frontend/src/config/sensorAmbiental.js
+const sensorAmb  = new Sensor('ESP32-A3', 'HUMEDAD_AMBIENTAL', 'Lote-001');
+// const sensorAmb  = new Sensor('ESP32-A3', 'LUZ_SOLAR',        'Lote-001');
 
-const simulador = new SimuladorIoT([sensorTemp, sensorHum, sensorPh]);
-simulador.iniciarSimulacion(5000);
+const simulador = new SimuladorIoT([sensorTemp, sensorHum, sensorAmb]);
+if (SIMULADOR_ACTIVO) {
+  simulador.iniciarSimulacion(5000);
+} else {
+  console.log('[📡] Simulador IoT desactivado (SIMULADOR_ACTIVO=false) — esperando lecturas reales del ESP32');
+}
 
 // ── Lecturas IoT (polling del dashboard) ─────────────────────────────────────
 app.get('/api/sensores/lecturas', (req, res) => {
@@ -38,20 +49,20 @@ app.get('/api/sensores/lecturas', (req, res) => {
     timestamp:   new Date(),
     temperatura: sensorTemp.obtenerUltimaLectura()?.valor || 0,
     humedad:     sensorHum.obtenerUltimaLectura()?.valor  || 0,
-    ph:          sensorPh.obtenerUltimaLectura()?.valor   || 0,
+    ambiental:   sensorAmb.obtenerUltimaLectura()?.valor  || 0,
   });
 });
 
 app.get('/api/sensores/historial', (req, res) => {
   const hTemp = sensorTemp.historialLecturas.slice(-15);
   const hHum  = sensorHum.historialLecturas.slice(-15);
-  const hPh   = sensorPh.historialLecturas.slice(-15);
+  const hAmb  = sensorAmb.historialLecturas.slice(-15);
 
   const combinados = hTemp.map((lt, i) => ({
     time:        new Date(lt.timestamp).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     temperatura: lt.valor,
     humedad:     hHum[i]?.valor ?? 0,
-    ph:          hPh[i]?.valor  ?? 0,
+    ambiental:   hAmb[i]?.valor ?? 0,
   }));
 
   res.json(combinados);
@@ -73,8 +84,8 @@ app.post('/api/sensores/ingesta', async (req, res) => {
       sensorTemp.registrarLectura(valFloat);
     } else if (sensorId === 'ESP32-A2' || tipo.toUpperCase() === 'HUMEDAD_SUELO' || tipo.toUpperCase() === 'HUMEDAD') {
       sensorHum.registrarLectura(valFloat);
-    } else if (sensorId === 'ESP32-A3' || tipo.toUpperCase() === 'PH') {
-      sensorPh.registrarLectura(valFloat);
+    } else if (sensorId === 'ESP32-A3' || tipo.toUpperCase() === 'HUMEDAD_AMBIENTAL' || tipo.toUpperCase() === 'LUZ_SOLAR') {
+      sensorAmb.registrarLectura(valFloat);
     }
 
     // 2. Si la BD PostgreSQL está conectada, almacenar
@@ -88,11 +99,11 @@ app.post('/api/sensores/ingesta', async (req, res) => {
         );
       }
       
-      // Registrar lectura
+      // Registrar lectura (lote_id desnormalizado — lo usa la exportación a Excel)
       await pool.query(
-        `INSERT INTO lecturas_sensores (sensor_id, valor, unidad, timestamp) 
-         VALUES ($1, $2, $3, NOW())`,
-        [sensorId, valFloat, unidad || '']
+        `INSERT INTO lecturas_sensores (sensor_id, lote_id, valor, unidad, timestamp)
+         VALUES ($1, $2, $3, $4, NOW())`,
+        [sensorId, loteId || 'Lote-001', valFloat, unidad || '']
       );
     }
 
@@ -130,19 +141,21 @@ app.get('/api/lotes/:id/exportar', async (req, res) => {
         }
         if (r.tipo === 'TEMPERATURA') agrupado[r.fecha]['Temperatura (°C)'] = parseFloat(r.valor);
         if (r.tipo === 'HUMEDAD_SUELO') agrupado[r.fecha]['Humedad del Suelo (%)'] = parseFloat(r.valor);
-        if (r.tipo === 'PH') agrupado[r.fecha]['pH del Suelo'] = parseFloat(r.valor);
+        if (r.tipo === 'HUMEDAD_AMBIENTAL') agrupado[r.fecha]['Humedad Ambiental (%)'] = parseFloat(r.valor);
+        if (r.tipo === 'LUZ_SOLAR') agrupado[r.fecha]['Luz Solar (lux)'] = parseFloat(r.valor);
       });
       data = Object.values(agrupado);
     } else {
       // Fallback en memoria
       const hTemp = sensorTemp.historialLecturas;
       const hHum  = sensorHum.historialLecturas;
-      const hPh   = sensorPh.historialLecturas;
+      const hAmb  = sensorAmb.historialLecturas;
+      const ambCol = sensorAmb.tipo === 'LUZ_SOLAR' ? 'Luz Solar (lux)' : 'Humedad Ambiental (%)';
       data = hTemp.map((lt, i) => ({
         'Fecha y Hora': new Date(lt.timestamp).toLocaleString('es-DO'),
         'Temperatura (°C)': lt.valor,
         'Humedad del Suelo (%)': hHum[i]?.valor ?? 0,
-        'pH del Suelo': hPh[i]?.valor ?? 0,
+        [ambCol]: hAmb[i]?.valor ?? 0,
       }));
     }
 
@@ -158,8 +171,8 @@ app.get('/api/lotes/:id/exportar', async (req, res) => {
     ws['!cols'] = [
       { wch: 22 }, // Fecha
       { wch: 18 }, // Temperatura
-      { wch: 22 }, // Humedad
-      { wch: 15 }  // pH
+      { wch: 22 }, // Humedad suelo
+      { wch: 22 }  // Sensor ambiental
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, 'Historial_Telemetria');
@@ -191,10 +204,10 @@ app.get('/api/health', (req, res) => {
 setInterval(async () => {
   const temp = sensorTemp.obtenerUltimaLectura()?.valor;
   const hum  = sensorHum.obtenerUltimaLectura()?.valor;
-  const ph   = sensorPh.obtenerUltimaLectura()?.valor;
+  const amb  = sensorAmb.obtenerUltimaLectura()?.valor;
   if (temp == null) return;
 
-  const u = umbralesRepo.getSync();
+  const u = await umbralesRepo.getParaEvaluador();
 
   const checks = [
     {
@@ -210,10 +223,11 @@ setInterval(async () => {
       unidad: '%',
     },
     {
-      sensor: 'ph', sensorId: 'ESP32-A3', valor: ph,
-      critico_alto: u.ph_critico_alto,           advertencia_alto: u.ph_advertencia_alto,
-      advertencia_bajo: u.ph_advertencia_bajo,    critico_bajo: u.ph_critico_bajo,
-      unidad: '',
+      sensor: 'ambiental', sensorId: 'ESP32-A3', valor: amb,
+      nombre: sensorAmb.tipo === 'LUZ_SOLAR' ? 'Luz solar' : 'Humedad ambiental',
+      critico_alto: u.amb_critico_alto,          advertencia_alto: u.amb_advertencia_alto,
+      advertencia_bajo: u.amb_advertencia_bajo,   critico_bajo: u.amb_critico_bajo,
+      unidad: sensorAmb.tipo === 'LUZ_SOLAR' ? ' lux' : '%',
     },
   ];
 
@@ -221,18 +235,19 @@ setInterval(async () => {
     let nivel = null;
     let msg   = null;
 
+    const nombre = c.nombre ?? capitalize(c.sensor);
     if (c.valor >= c.critico_alto) {
       nivel = 'critica';
-      msg   = `${capitalize(c.sensor)} muy alta: ${c.valor.toFixed(2)}${c.unidad}`;
+      msg   = `${nombre} muy alta: ${c.valor.toFixed(2)}${c.unidad}`;
     } else if (c.valor <= c.critico_bajo) {
       nivel = 'critica';
-      msg   = `${capitalize(c.sensor)} muy baja: ${c.valor.toFixed(2)}${c.unidad}`;
+      msg   = `${nombre} muy baja: ${c.valor.toFixed(2)}${c.unidad}`;
     } else if (c.valor >= c.advertencia_alto) {
       nivel = 'advertencia';
-      msg   = `${capitalize(c.sensor)} elevada: ${c.valor.toFixed(2)}${c.unidad}`;
+      msg   = `${nombre} elevada: ${c.valor.toFixed(2)}${c.unidad}`;
     } else if (c.valor <= c.advertencia_bajo) {
       nivel = 'advertencia';
-      msg   = `${capitalize(c.sensor)} baja: ${c.valor.toFixed(2)}${c.unidad}`;
+      msg   = `${nombre} baja: ${c.valor.toFixed(2)}${c.unidad}`;
     }
 
     // Pasa sensorId y loteId para mantener las FK en la tabla alertas
@@ -240,7 +255,7 @@ setInterval(async () => {
   }
 
   // Actualiza las lecturas actuales del Lote-001 en la tabla de lotes
-  await lotesRepo.updateSensores('Lote-001', temp, hum, ph);
+  await lotesRepo.updateSensores('Lote-001', temp, hum, amb);
 }, 5000);
 
 function capitalize(str) {
@@ -250,7 +265,7 @@ function capitalize(str) {
 // ── Semilla de usuario por defecto ───────────────────────────────────────────
 (async () => {
   try {
-    await AuthService.registrar('Randy (Productor)', 'admin@lab.com', 'admin123');
+    await AuthService.registrar('Enfranly (Productor)', 'admin@lab.com', 'admin123');
     console.log('[🔑] Usuario semilla: admin@lab.com | Pass: admin123');
   } catch {
     // ya existe
@@ -259,5 +274,5 @@ function capitalize(str) {
 
 app.listen(PORT, () => {
   console.log(`[🚀] Conuco Tech API → http://localhost:${PORT}`);
-  console.log(`[📡] Simulador IoT activo (5s)`);
+  console.log(SIMULADOR_ACTIVO ? '[📡] Simulador IoT activo (5s)' : '[📡] Simulador IoT desactivado — modo ESP32 real');
 });

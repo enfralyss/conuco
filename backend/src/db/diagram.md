@@ -27,7 +27,7 @@ erDiagram
         varchar(10)  imagen
         numeric      temp_actual
         numeric      hum_actual
-        numeric      ph_actual
+        numeric      amb_actual
         boolean      activo
         timestamptz  created_at
     }
@@ -87,10 +87,10 @@ erDiagram
         numeric      hum_critico_alto
         numeric      hum_advertencia_bajo
         numeric      hum_critico_bajo
-        numeric      ph_advertencia_alto
-        numeric      ph_critico_alto
-        numeric      ph_advertencia_bajo
-        numeric      ph_critico_bajo
+        numeric      amb_advertencia_alto
+        numeric      amb_critico_alto
+        numeric      amb_advertencia_bajo
+        numeric      amb_critico_bajo
     }
 
     USUARIOS  ||--o{  LOTES             : "posee"
@@ -135,7 +135,7 @@ Table lotes {
   imagen        varchar(10)
   temp_actual   decimal(6,2) [note: 'última lectura °C']
   hum_actual    decimal(6,2) [note: 'última lectura %']
-  ph_actual     decimal(5,2) [note: 'última lectura pH']
+  amb_actual    decimal(8,2) [note: 'última lectura humedad ambiental (%) o luz solar (lux)']
   activo        boolean      [default: true]
   created_at    timestamptz  [default: `now()`]
 }
@@ -157,7 +157,7 @@ Table cultivos {
 
 Table sensores {
   id         varchar(50) [pk, note: 'MAC address del ESP32']
-  tipo       varchar(30) [not null, note: 'TEMPERATURA | HUMEDAD_SUELO | PH']
+  tipo       varchar(30) [not null, note: 'TEMPERATURA | HUMEDAD_SUELO | HUMEDAD_AMBIENTAL | LUZ_SOLAR']
   lote_id    varchar(50) [ref: > lotes.id]
   activo     boolean     [default: true]
   created_at timestamptz [default: `now()`]
@@ -181,7 +181,7 @@ Table alertas {
   id         int         [pk, increment]
   sensor_id  varchar(50) [ref: > sensores.id, note: 'qué sensor físico disparó la alerta']
   lote_id    varchar(50) [ref: > lotes.id,    note: 'qué parcela fue afectada']
-  sensor     varchar(30) [not null, note: 'tipo: temperatura | humedad | ph']
+  sensor     varchar(30) [not null, note: 'tipo: temperatura | humedad | ambiental']
   nivel      varchar(20) [not null, note: 'critica | advertencia']
   mensaje    text        [not null]
   reconocida boolean     [default: false]
@@ -205,10 +205,10 @@ Table umbrales {
   hum_critico_alto      decimal(5,2) [default: 85]
   hum_advertencia_bajo  decimal(5,2) [default: 45]
   hum_critico_bajo      decimal(5,2) [default: 30]
-  ph_advertencia_alto   decimal(4,2) [default: 7.0]
-  ph_critico_alto       decimal(4,2) [default: 7.5]
-  ph_advertencia_bajo   decimal(4,2) [default: 5.5]
-  ph_critico_bajo       decimal(4,2) [default: 5.0]
+  amb_advertencia_alto  decimal(8,2) [default: 70]
+  amb_critico_alto      decimal(8,2) [default: 80]
+  amb_advertencia_bajo  decimal(8,2) [default: 40]
+  amb_critico_bajo      decimal(8,2) [default: 30]
 
   indexes {
     (usuario_id, lote_id) [unique, name: 'uq_umbrales_usuario_lote']

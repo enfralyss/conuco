@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { User, Bell, Sliders, Save, CheckCircle, MapPin, Globe } from 'lucide-react';
 import { api } from '../lib/api';
+import { SENSOR_AMBIENTAL } from '../config/sensorAmbiental';
 
 const userStored = (() => {
   try { return JSON.parse(localStorage.getItem('conuco_user')) || {}; }
@@ -12,8 +13,8 @@ const DEFAULTS = {
   temp_advertencia_bajo: 18, temp_critico_bajo:    14,
   hum_advertencia_alto:  75, hum_critico_alto:     85,
   hum_advertencia_bajo:  45, hum_critico_bajo:     30,
-  ph_advertencia_alto:  7.0, ph_critico_alto:     7.5,
-  ph_advertencia_bajo:  5.5, ph_critico_bajo:     5.0,
+  amb_advertencia_alto:  70, amb_critico_alto:     80,
+  amb_advertencia_bajo:  40, amb_critico_bajo:     30,
 };
 
 export default function Configuracion() {
@@ -154,11 +155,11 @@ export default function Configuracion() {
               <UmbralRow label="Crítico bajo"       color="red"   valor={umbrales.hum_critico_bajo}      onChange={v => setU('hum_critico_bajo', v)}      min={0}  max={50}  step={1} />
             </UmbralGroup>
 
-            <UmbralGroup titulo="🧪 Nivel de pH">
-              <UmbralRow label="Advertencia alta"  color="amber" valor={umbrales.ph_advertencia_alto}   onChange={v => setU('ph_advertencia_alto', v)}   min={6}  max={9}  step={0.1} />
-              <UmbralRow label="Crítico alto"       color="red"   valor={umbrales.ph_critico_alto}       onChange={v => setU('ph_critico_alto', v)}       min={7}  max={10} step={0.1} />
-              <UmbralRow label="Advertencia baja"  color="amber" valor={umbrales.ph_advertencia_bajo}   onChange={v => setU('ph_advertencia_bajo', v)}   min={4}  max={7}  step={0.1} />
-              <UmbralRow label="Crítico bajo"       color="red"   valor={umbrales.ph_critico_bajo}       onChange={v => setU('ph_critico_bajo', v)}       min={3}  max={6}  step={0.1} />
+            <UmbralGroup titulo={`💨 ${SENSOR_AMBIENTAL.label} (${SENSOR_AMBIENTAL.unidad.trim()})`}>
+              <UmbralRow label="Advertencia alta"  color="amber" valor={umbrales.amb_advertencia_alto}  onChange={v => setU('amb_advertencia_alto', v)}  min={SENSOR_AMBIENTAL.sliders.advAlto.min}  max={SENSOR_AMBIENTAL.sliders.advAlto.max}  step={SENSOR_AMBIENTAL.sliders.step} />
+              <UmbralRow label="Crítico alto"       color="red"   valor={umbrales.amb_critico_alto}      onChange={v => setU('amb_critico_alto', v)}      min={SENSOR_AMBIENTAL.sliders.critAlto.min} max={SENSOR_AMBIENTAL.sliders.critAlto.max} step={SENSOR_AMBIENTAL.sliders.step} />
+              <UmbralRow label="Advertencia baja"  color="amber" valor={umbrales.amb_advertencia_bajo}  onChange={v => setU('amb_advertencia_bajo', v)}  min={SENSOR_AMBIENTAL.sliders.advBajo.min}  max={SENSOR_AMBIENTAL.sliders.advBajo.max}  step={SENSOR_AMBIENTAL.sliders.step} />
+              <UmbralRow label="Crítico bajo"       color="red"   valor={umbrales.amb_critico_bajo}      onChange={v => setU('amb_critico_bajo', v)}      min={SENSOR_AMBIENTAL.sliders.critBajo.min} max={SENSOR_AMBIENTAL.sliders.critBajo.max} step={SENSOR_AMBIENTAL.sliders.step} />
             </UmbralGroup>
           </>
         )}

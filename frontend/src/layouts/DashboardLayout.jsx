@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, Map, History, Settings, LogOut, Sprout, Menu, X, Bell, 
-  ThermometerSun, Droplets, FlaskConical, AlertTriangle, CheckCircle, Check, BellOff 
+import {
+  LayoutDashboard, Map, History, Settings, LogOut, Sprout, Menu, X, Bell,
+  ThermometerSun, Droplets, AlertTriangle, CheckCircle, Check, BellOff
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { SENSOR_AMBIENTAL } from '../config/sensorAmbiental';
 
 const SENSOR_ICONS = {
   temperatura: ThermometerSun,
   humedad: Droplets,
-  ph: FlaskConical,
+  ambiental: SENSOR_AMBIENTAL.Icono,
 };
 
 const NIVEL_COLORS = {

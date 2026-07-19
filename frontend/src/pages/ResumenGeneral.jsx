@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, ReferenceLine } from 'recharts';
-import { Thermometer, Droplets, FlaskConical, Wifi, TrendingUp, TrendingDown, Minus, Sun, Wind } from 'lucide-react';
+import { Thermometer, Droplets, Clock, Wifi, TrendingUp, TrendingDown, Minus, Sun, Wind } from 'lucide-react';
 import { api } from '../lib/api';
+import { SENSOR_AMBIENTAL, ambFueraDeIdeal, ambFueraDeCritico, formatoAmbiental } from '../config/sensorAmbiental';
 
 // ── Hook: datos IoT desde el backend ─────────────────────────────────────────
 function useIoTData() {
@@ -26,7 +27,7 @@ function useIoTData() {
               time:        new Date(lectura.timestamp).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
               temperatura: lectura.temperatura,
               humedad:     lectura.humedad,
-              ph:          lectura.ph,
+              ambiental:   lectura.ambiental,
             };
             return [...prev.slice(-14), punto];
           });
@@ -54,14 +55,14 @@ const TEND_ICON = {
 
 export default function ResumenGeneral() {
   const { data: sensorData, conectado } = useIoTData();
-  const ultima = sensorData.at(-1) ?? { temperatura: 0, humedad: 0, ph: 0, time: '—' };
+  const ultima = sensorData.at(-1) ?? { temperatura: 0, humedad: 0, ambiental: 0, time: '—' };
 
   const loteActivo = { id: 'Lote 001', cultivo: 'Maíz Amarillo', etapa: 'Siembra Tardía', diasSembrado: 65 };
 
   const saludGeneral = (() => {
-    if (ultima.temperatura > 32 || ultima.humedad < 35 || ultima.ph < 5.0 || ultima.ph > 7.5)
+    if (ultima.temperatura > 32 || ultima.humedad < 35 || ambFueraDeCritico(ultima.ambiental))
       return { label: 'Crítica',    color: 'text-red-600',   bg: 'bg-red-50',   dot: 'bg-red-500'   };
-    if (ultima.temperatura > 28 || ultima.humedad < 50 || ultima.ph < 5.5 || ultima.ph > 7.0)
+    if (ultima.temperatura > 28 || ultima.humedad < 50 || ambFueraDeIdeal(ultima.ambiental))
       return { label: 'Advertencia', color: 'text-amber-600', bg: 'bg-amber-50', dot: 'bg-amber-500' };
     return   { label: 'Óptima',     color: 'text-green-600', bg: 'bg-green-50', dot: 'bg-green-500' };
   })();
@@ -97,7 +98,7 @@ export default function ResumenGeneral() {
         <InfoStrip icono={<Sun size={15} />}          label="Etapa"         value={loteActivo.etapa}                   color="amber"  />
         <InfoStrip icono={<Wind size={15} />}         label="Días sembrado" value={`${loteActivo.diasSembrado} días`}  color="blue"   />
         <InfoStrip icono={<Wifi size={15} />}         label="Sensores"      value="3 activos"                          color="green"  />
-        <InfoStrip icono={<FlaskConical size={15} />} label="Última lectura" value={ultima.time}                        color="purple" />
+        <InfoStrip icono={<Clock size={15} />}        label="Última lectura" value={ultima.time}                        color="purple" />
       </div>
 
       {/* KPI Cards */}
@@ -116,10 +117,10 @@ export default function ResumenGeneral() {
               icono={<Droplets size={22} />}      tend={tendencia(sensorData, 'humedad')}
               colorClass="text-blue-500"   bgClass="bg-blue-50"   borderClass="border-blue-500"
               rango="Ideal: 55–75%"   alerta={ultima.humedad < 50} />
-            <KpiCard title="Nivel de pH"       value={ultima.ph.toFixed(2)}
-              icono={<FlaskConical size={22} />}  tend={tendencia(sensorData, 'ph')}
-              colorClass="text-purple-500" bgClass="bg-purple-50" borderClass="border-purple-500"
-              rango="Ideal: 5.5–7.0"  alerta={ultima.ph < 5.5 || ultima.ph > 7.0} />
+            <KpiCard title={SENSOR_AMBIENTAL.label} value={formatoAmbiental(ultima.ambiental)}
+              icono={<SENSOR_AMBIENTAL.Icono size={22} />}  tend={tendencia(sensorData, 'ambiental')}
+              colorClass={SENSOR_AMBIENTAL.colorClass} bgClass={SENSOR_AMBIENTAL.bgClass} borderClass={SENSOR_AMBIENTAL.borderClass}
+              rango={SENSOR_AMBIENTAL.rangoTexto}  alerta={ambFueraDeIdeal(ultima.ambiental)} />
           </div>
 
           {/* Gráficas */}
@@ -139,22 +140,22 @@ export default function ResumenGeneral() {
               </ResponsiveContainer>
             </ChartCard>
 
-            <ChartCard title="Evolución del pH" badge="Rango ideal: 5.5 – 7.0">
+            <ChartCard title={`Evolución de ${SENSOR_AMBIENTAL.label}`} badge={SENSOR_AMBIENTAL.rangoTexto}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={sensorData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                   <defs>
-                    <linearGradient id="gradPh" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#a855f7" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+                    <linearGradient id="gradAmb" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor={SENSOR_AMBIENTAL.stroke} stopOpacity={0.25} />
+                      <stop offset="95%" stopColor={SENSOR_AMBIENTAL.stroke} stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="time" stroke="#94a3b8" fontSize={11} tickMargin={8} axisLine={false} interval="preserveStartEnd" />
-                  <YAxis domain={[4.5, 8.5]} stroke="#a855f7" fontSize={11} axisLine={false} tickLine={false} tickCount={5} />
+                  <YAxis domain={SENSOR_AMBIENTAL.dominioGrafica} stroke={SENSOR_AMBIENTAL.stroke} fontSize={11} axisLine={false} tickLine={false} tickCount={5} />
                   <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0/0.1)', fontSize: 12 }} />
-                  <ReferenceLine y={5.5} yAxisId={0} stroke="#a855f7" strokeDasharray="4 4" strokeOpacity={0.5} />
-                  <ReferenceLine y={7.0} yAxisId={0} stroke="#a855f7" strokeDasharray="4 4" strokeOpacity={0.5} />
-                  <Area type="monotone" dataKey="ph" stroke="#a855f7" strokeWidth={2.5} fillOpacity={1} fill="url(#gradPh)" name="Nivel pH" dot={false} activeDot={{ r: 5 }} />
+                  <ReferenceLine y={SENSOR_AMBIENTAL.rangoIdeal.min} yAxisId={0} stroke={SENSOR_AMBIENTAL.stroke} strokeDasharray="4 4" strokeOpacity={0.5} />
+                  <ReferenceLine y={SENSOR_AMBIENTAL.rangoIdeal.max} yAxisId={0} stroke={SENSOR_AMBIENTAL.stroke} strokeDasharray="4 4" strokeOpacity={0.5} />
+                  <Area type="monotone" dataKey="ambiental" stroke={SENSOR_AMBIENTAL.stroke} strokeWidth={2.5} fillOpacity={1} fill="url(#gradAmb)" name={SENSOR_AMBIENTAL.label} dot={false} activeDot={{ r: 5 }} />
                 </AreaChart>
               </ResponsiveContainer>
             </ChartCard>

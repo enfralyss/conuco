@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS lotes (
   imagen        VARCHAR(10),
   temp_actual   NUMERIC(6,2),
   hum_actual    NUMERIC(6,2),
-  ph_actual     NUMERIC(5,2),
+  amb_actual    NUMERIC(8,2),  -- humedad ambiental % (DHT22) o luz solar en lux (BH1750)
   activo        BOOLEAN       NOT NULL DEFAULT TRUE,
   created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS cultivos (
 -- Sensores IoT registrados
 CREATE TABLE IF NOT EXISTS sensores (
   id         VARCHAR(50) PRIMARY KEY,
-  tipo       VARCHAR(30) NOT NULL,  -- TEMPERATURA | HUMEDAD_SUELO | PH
+  tipo       VARCHAR(30) NOT NULL,  -- TEMPERATURA | HUMEDAD_SUELO | HUMEDAD_AMBIENTAL | LUZ_SOLAR
   lote_id    VARCHAR(50) REFERENCES lotes(id) ON DELETE SET NULL,
   activo     BOOLEAN     NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS alertas (
   id          SERIAL      PRIMARY KEY,
   sensor_id   VARCHAR(50) REFERENCES sensores(id) ON DELETE SET NULL,  -- FK al sensor físico
   lote_id     VARCHAR(50) REFERENCES lotes(id)    ON DELETE SET NULL,  -- FK al lote afectado
-  sensor      VARCHAR(30) NOT NULL,   -- tipo: temperatura | humedad | ph  (para queries sin JOIN)
+  sensor      VARCHAR(30) NOT NULL,   -- tipo: temperatura | humedad | ambiental  (para queries sin JOIN)
   nivel       VARCHAR(20) NOT NULL,   -- critica | advertencia
   mensaje     TEXT        NOT NULL,
   reconocida  BOOLEAN     NOT NULL DEFAULT FALSE,
@@ -93,11 +93,13 @@ CREATE TABLE IF NOT EXISTS umbrales (
   hum_critico_alto      NUMERIC(5,2) NOT NULL DEFAULT 85,
   hum_advertencia_bajo  NUMERIC(5,2) NOT NULL DEFAULT 45,
   hum_critico_bajo      NUMERIC(5,2) NOT NULL DEFAULT 30,
-  ph_advertencia_alto   NUMERIC(4,2) NOT NULL DEFAULT 7.0,
-  ph_critico_alto       NUMERIC(4,2) NOT NULL DEFAULT 7.5,
-  ph_advertencia_bajo   NUMERIC(4,2) NOT NULL DEFAULT 5.5,
-  ph_critico_bajo       NUMERIC(4,2) NOT NULL DEFAULT 5.0,
-  UNIQUE(usuario_id, lote_id)  -- un registro global + uno por lote
+  amb_advertencia_alto  NUMERIC(8,2) NOT NULL DEFAULT 70,
+  amb_critico_alto      NUMERIC(8,2) NOT NULL DEFAULT 80,
+  amb_advertencia_bajo  NUMERIC(8,2) NOT NULL DEFAULT 40,
+  amb_critico_bajo      NUMERIC(8,2) NOT NULL DEFAULT 30,
+  -- NULLS NOT DISTINCT (PG15+): sin esto, lote_id NULL (global) nunca conflictúa
+  -- y el upsert de umbrales globales acumularía filas duplicadas.
+  UNIQUE NULLS NOT DISTINCT (usuario_id, lote_id)  -- un registro global + uno por lote
 );
 
 -- Índices de rendimiento

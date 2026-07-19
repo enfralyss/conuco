@@ -5,8 +5,8 @@ const DEFAULTS = {
   temp_advertencia_bajo: 18, temp_critico_bajo:    14,
   hum_advertencia_alto:  75, hum_critico_alto:     85,
   hum_advertencia_bajo:  45, hum_critico_bajo:     30,
-  ph_advertencia_alto:  7.0, ph_critico_alto:     7.5,
-  ph_advertencia_bajo:  5.5, ph_critico_bajo:     5.0,
+  amb_advertencia_alto:  70, amb_critico_alto:     80,
+  amb_advertencia_bajo:  40, amb_critico_bajo:     30,
 };
 
 // In-memory: mapa clave "usuarioId:loteId|global"
@@ -27,10 +27,10 @@ function rowToUmbrales(row) {
     hum_critico_alto:      parseFloat(row.hum_critico_alto),
     hum_advertencia_bajo:  parseFloat(row.hum_advertencia_bajo),
     hum_critico_bajo:      parseFloat(row.hum_critico_bajo),
-    ph_advertencia_alto:   parseFloat(row.ph_advertencia_alto),
-    ph_critico_alto:       parseFloat(row.ph_critico_alto),
-    ph_advertencia_bajo:   parseFloat(row.ph_advertencia_bajo),
-    ph_critico_bajo:       parseFloat(row.ph_critico_bajo),
+    amb_advertencia_alto:  parseFloat(row.amb_advertencia_alto),
+    amb_critico_alto:      parseFloat(row.amb_critico_alto),
+    amb_advertencia_bajo:  parseFloat(row.amb_advertencia_bajo),
+    amb_critico_bajo:      parseFloat(row.amb_critico_bajo),
   };
 }
 
@@ -70,7 +70,7 @@ const repo = {
         `INSERT INTO umbrales (usuario_id, lote_id,
            temp_advertencia_alto, temp_critico_alto, temp_advertencia_bajo, temp_critico_bajo,
            hum_advertencia_alto,  hum_critico_alto,  hum_advertencia_bajo,  hum_critico_bajo,
-           ph_advertencia_alto,   ph_critico_alto,   ph_advertencia_bajo,   ph_critico_bajo)
+           amb_advertencia_alto,  amb_critico_alto,  amb_advertencia_bajo,  amb_critico_bajo)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
          ON CONFLICT (usuario_id, lote_id) DO UPDATE SET
            temp_advertencia_alto = EXCLUDED.temp_advertencia_alto,
@@ -81,17 +81,17 @@ const repo = {
            hum_critico_alto      = EXCLUDED.hum_critico_alto,
            hum_advertencia_bajo  = EXCLUDED.hum_advertencia_bajo,
            hum_critico_bajo      = EXCLUDED.hum_critico_bajo,
-           ph_advertencia_alto   = EXCLUDED.ph_advertencia_alto,
-           ph_critico_alto       = EXCLUDED.ph_critico_alto,
-           ph_advertencia_bajo   = EXCLUDED.ph_advertencia_bajo,
-           ph_critico_bajo       = EXCLUDED.ph_critico_bajo`,
+           amb_advertencia_alto  = EXCLUDED.amb_advertencia_alto,
+           amb_critico_alto      = EXCLUDED.amb_critico_alto,
+           amb_advertencia_bajo  = EXCLUDED.amb_advertencia_bajo,
+           amb_critico_bajo      = EXCLUDED.amb_critico_bajo`,
         [usuarioId, loteId,
          valores.temp_advertencia_alto, valores.temp_critico_alto,
          valores.temp_advertencia_bajo, valores.temp_critico_bajo,
          valores.hum_advertencia_alto,  valores.hum_critico_alto,
          valores.hum_advertencia_bajo,  valores.hum_critico_bajo,
-         valores.ph_advertencia_alto,   valores.ph_critico_alto,
-         valores.ph_advertencia_bajo,   valores.ph_critico_bajo]
+         valores.amb_advertencia_alto,  valores.amb_critico_alto,
+         valores.amb_advertencia_bajo,  valores.amb_critico_bajo]
       );
       return { loteId, ...valores };
     }
@@ -101,8 +101,16 @@ const repo = {
     return store[key];
   },
 
-  // Usado por el evaluador del simulador (sin usuario, usa defaults globales)
-  getSync() {
+  // Usado por el evaluador de alertas (proceso global del servidor, sin usuario
+  // autenticado). Con PostgreSQL lee los umbrales globales guardados; sin BD
+  // usa el store en memoria; en ambos casos cae a DEFAULTS.
+  async getParaEvaluador() {
+    if (pool) {
+      const { rows } = await pool.query(
+        'SELECT * FROM umbrales WHERE lote_id IS NULL ORDER BY id ASC LIMIT 1'
+      );
+      return rows[0] ? rowToUmbrales(rows[0]) : { ...DEFAULTS };
+    }
     const globalKey = Object.keys(store).find(k => k.endsWith(':global'));
     return globalKey ? { ...store[globalKey] } : { ...DEFAULTS };
   },

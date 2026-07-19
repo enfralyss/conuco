@@ -2,10 +2,10 @@ const pool = require('../db/pool');
 
 // ── Seed in-memory (usado cuando no hay PostgreSQL) ──────────────────────────
 const store = [
-  { id: 'Lote-001', cultivo: 'Maíz Amarillo',      etapa: 'Siembra Tardía',          area: 2.4, ubicacion: 'Sector Norte, Parcela A', fechaSiembra: '2026-02-10', salud: 'optima',      imagen: '🌽', tempActual: 26.3, humActual: 68.5, phActual: 6.4 },
-  { id: 'Lote-002', cultivo: 'Habichuelas Rojas',   etapa: 'Desarrollo Vegetativo',   area: 1.8, ubicacion: 'Sector Sur, Parcela B',   fechaSiembra: '2026-01-25', salud: 'advertencia', imagen: '🫘', tempActual: 29.7, humActual: 43.2, phActual: 6.8 },
-  { id: 'Lote-003', cultivo: 'Plátano Barahonero',  etapa: 'Floración',               area: 3.1, ubicacion: 'Sector Este, Parcela C',  fechaSiembra: '2025-11-05', salud: 'optima',      imagen: '🍌', tempActual: 27.1, humActual: 71.0, phActual: 6.2 },
-  { id: 'Lote-004', cultivo: 'Yuca Blanca',          etapa: 'Engorde',                 area: 0.9, ubicacion: 'Sector Oeste, Parcela D', fechaSiembra: '2025-12-18', salud: 'critica',     imagen: '🌿', tempActual: 33.5, humActual: 28.0, phActual: 7.8 },
+  { id: 'Lote-001', cultivo: 'Maíz Amarillo',      etapa: 'Siembra Tardía',          area: 2.4, ubicacion: 'Sector Norte, Parcela A', fechaSiembra: '2026-02-10', salud: 'optima',      imagen: '🌽', tempActual: 26.3, humActual: 68.5, ambActual: 58.0 },
+  { id: 'Lote-002', cultivo: 'Habichuelas Rojas',   etapa: 'Desarrollo Vegetativo',   area: 1.8, ubicacion: 'Sector Sur, Parcela B',   fechaSiembra: '2026-01-25', salud: 'advertencia', imagen: '🫘', tempActual: 29.7, humActual: 43.2, ambActual: 38.5 },
+  { id: 'Lote-003', cultivo: 'Plátano Barahonero',  etapa: 'Floración',               area: 3.1, ubicacion: 'Sector Este, Parcela C',  fechaSiembra: '2025-11-05', salud: 'optima',      imagen: '🍌', tempActual: 27.1, humActual: 71.0, ambActual: 64.0 },
+  { id: 'Lote-004', cultivo: 'Yuca Blanca',          etapa: 'Engorde',                 area: 0.9, ubicacion: 'Sector Oeste, Parcela D', fechaSiembra: '2025-12-18', salud: 'critica',     imagen: '🌿', tempActual: 33.5, humActual: 28.0, ambActual: 25.0 },
 ];
 
 // ── Helpers de conversión ────────────────────────────────────────────────────
@@ -23,7 +23,7 @@ function rowToLote(row) {
     sensores: {
       temperatura: parseFloat(row.temp_actual ?? row.tempActual),
       humedad:     parseFloat(row.hum_actual  ?? row.humActual),
-      ph:          parseFloat(row.ph_actual   ?? row.phActual),
+      ambiental:   parseFloat(row.amb_actual  ?? row.ambActual),
     },
   };
 }
@@ -54,11 +54,11 @@ const repo = {
     if (pool) {
       const { rows } = await pool.query(
         `INSERT INTO lotes
-          (id, cultivo, etapa, area_ha, ubicacion, fecha_siembra, salud, imagen, temp_actual, hum_actual, ph_actual)
+          (id, cultivo, etapa, area_ha, ubicacion, fecha_siembra, salud, imagen, temp_actual, hum_actual, amb_actual)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
         [lote.id, lote.cultivo, lote.etapa, lote.area, lote.ubicacion,
          lote.fechaSiembra, lote.salud, lote.imagen,
-         lote.tempActual, lote.humActual, lote.phActual]
+         lote.tempActual, lote.humActual, lote.ambActual]
       );
       return rowToLote(rows[0]);
     }
@@ -79,11 +79,11 @@ const repo = {
            imagen       = COALESCE($8, imagen),
            temp_actual  = COALESCE($9,  temp_actual),
            hum_actual   = COALESCE($10, hum_actual),
-           ph_actual    = COALESCE($11, ph_actual)
+           amb_actual   = COALESCE($11, amb_actual)
          WHERE id = $1 RETURNING *`,
         [id, cambios.cultivo, cambios.etapa, cambios.area, cambios.ubicacion,
          cambios.fechaSiembra, cambios.salud, cambios.imagen,
-         cambios.tempActual, cambios.humActual, cambios.phActual]
+         cambios.tempActual, cambios.humActual, cambios.ambActual]
       );
       return rows[0] ? rowToLote(rows[0]) : null;
     }
@@ -105,16 +105,16 @@ const repo = {
   },
 
   // Actualiza solo las lecturas de sensores de un lote (usado por el simulador)
-  async updateSensores(id, temp, hum, ph) {
+  async updateSensores(id, temp, hum, amb) {
     if (pool) {
       await pool.query(
-        'UPDATE lotes SET temp_actual=$2, hum_actual=$3, ph_actual=$4 WHERE id=$1',
-        [id, temp, hum, ph]
+        'UPDATE lotes SET temp_actual=$2, hum_actual=$3, amb_actual=$4 WHERE id=$1',
+        [id, temp, hum, amb]
       );
       return;
     }
     const lote = store.find(l => l.id === id);
-    if (lote) { lote.tempActual = temp; lote.humActual = hum; lote.phActual = ph; }
+    if (lote) { lote.tempActual = temp; lote.humActual = hum; lote.ambActual = amb; }
   },
 };
 

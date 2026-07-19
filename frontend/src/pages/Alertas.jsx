@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { AlertTriangle, ThermometerSun, Droplets, FlaskConical, CheckCircle, BellOff, MapPin } from 'lucide-react';
+import { AlertTriangle, ThermometerSun, Droplets, CheckCircle, BellOff, MapPin } from 'lucide-react';
 import { api } from '../lib/api';
+import { SENSOR_AMBIENTAL } from '../config/sensorAmbiental';
 
 // ── Hook: alertas desde el backend (polling) ──────────────────────────────────
 function useAlertas() {
@@ -40,7 +41,7 @@ const NIVEL_STYLES = {
 const SENSOR_META = {
   temperatura: { label: 'Temperatura', Icono: ThermometerSun, iconColor: 'text-orange-500' },
   humedad:     { label: 'Humedad',     Icono: Droplets,       iconColor: 'text-blue-500'   },
-  ph:          { label: 'pH',          Icono: FlaskConical,   iconColor: 'text-purple-500' },
+  ambiental:   { label: SENSOR_AMBIENTAL.labelCorto, Icono: SENSOR_AMBIENTAL.Icono, iconColor: SENSOR_AMBIENTAL.colorClass },
 };
 
 function formatRelativo(ts) {

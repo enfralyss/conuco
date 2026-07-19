@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Thermometer, Droplets, FlaskConical, Plus, X, CheckCircle, AlertTriangle, XCircle, ChevronRight, Sprout } from 'lucide-react';
+import { MapPin, Thermometer, Droplets, Plus, X, CheckCircle, AlertTriangle, XCircle, ChevronRight, Sprout } from 'lucide-react';
 import { api } from '../lib/api';
+import { SENSOR_AMBIENTAL, formatoAmbiental } from '../config/sensorAmbiental';
 
 const SALUD_CONFIG = {
   optima:      { label: 'Óptima',      bg: 'bg-green-100',  text: 'text-green-700',  border: 'border-green-400', Icono: CheckCircle,   dot: 'bg-green-500'  },
@@ -128,7 +129,7 @@ export default function MisLotes() {
                 <div className="grid grid-cols-3 gap-2 mb-4">
                   <SensorPill icono={<Thermometer size={14} />} valor={`${lote.sensores.temperatura.toFixed(1)}°C`} color="orange" />
                   <SensorPill icono={<Droplets size={14} />}     valor={`${lote.sensores.humedad.toFixed(1)}%`}    color="blue"   />
-                  <SensorPill icono={<FlaskConical size={14} />} valor={`pH ${lote.sensores.ph.toFixed(1)}`}       color="purple" />
+                  <SensorPill icono={<SENSOR_AMBIENTAL.Icono size={14} />} valor={formatoAmbiental(lote.sensores.ambiental)} color={SENSOR_AMBIENTAL.pillColor} />
                 </div>
 
                 <button onClick={() => navigate(`/dashboard/lotes/${lote.id}`)}
@@ -186,7 +187,8 @@ export default function MisLotes() {
 const COLOR_MAP = {
   orange: 'bg-orange-50 text-orange-600',
   blue:   'bg-blue-50 text-blue-600',
-  purple: 'bg-purple-50 text-purple-600',
+  cyan:   'bg-cyan-50 text-cyan-600',
+  amber:  'bg-amber-50 text-amber-600',
 };
 
 function SensorPill({ icono, valor, color }) {
