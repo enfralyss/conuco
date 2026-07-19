@@ -1,4 +1,5 @@
-const pool = require('./db/pool'); // inicializa conexión pg al arrancar
+const pool        = require('./db/pool'); // inicializa conexión pg al arrancar
+const bootstrapDb = require('./db/bootstrap');
 const XLSX = require('xlsx');
 
 const express = require('express');
@@ -202,6 +203,7 @@ app.get('/api/health', (req, res) => {
 
 // ── Evaluador de umbrales (genera alertas automáticas cada 5s) ───────────────
 setInterval(async () => {
+  try {
   const temp = sensorTemp.obtenerUltimaLectura()?.valor;
   const hum  = sensorHum.obtenerUltimaLectura()?.valor;
   const amb  = sensorAmb.obtenerUltimaLectura()?.valor;
@@ -256,14 +258,23 @@ setInterval(async () => {
 
   // Actualiza las lecturas actuales del Lote-001 en la tabla de lotes
   await lotesRepo.updateSensores('Lote-001', temp, hum, amb);
+  } catch (err) {
+    // Un fallo puntual de BD no debe tumbar el proceso (unhandled rejection)
+    console.error('[❌] Evaluador de umbrales:', err.message);
+  }
 }, 5000);
 
 function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-// ── Semilla de usuario por defecto ───────────────────────────────────────────
+// ── Inicialización de BD + semilla de usuario por defecto ────────────────────
 (async () => {
+  try {
+    await bootstrapDb(); // crea tablas (idempotente) y siembra lotes/sensores si la BD está vacía
+  } catch (err) {
+    console.error('[❌] Error inicializando BD:', err.message);
+  }
   try {
     await AuthService.registrar('Enfranly (Productor)', 'admin@lab.com', 'admin123');
     console.log('[🔑] Usuario semilla: admin@lab.com | Pass: admin123');
