@@ -22,6 +22,7 @@
  */
 
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <WebServer.h>
 #include <HTTPClient.h>
 
@@ -44,9 +45,10 @@ const char* WIFI_SSID = "TU_RED_WIFI";
 const char* WIFI_PASS = "TU_CLAVE_WIFI";
 
 // ------------------- BACKEND CONUCO TECH -------------------
-// IP de la PC donde corre el backend Node (puerto 3001 por defecto).
-// En Windows la ves con: ipconfig -> "Direccion IPv4"
-const char* BACKEND_HOST = "http://192.168.0.3:3001";
+// Produccion (Coolify). Para probar contra el backend local de la PC
+// usa la segunda linea (ipconfig -> "Direccion IPv4").
+const char* BACKEND_HOST = "https://api-conuco.jbsandbox.qzz.io";
+// const char* BACKEND_HOST = "http://192.168.0.3:3001";
 const char* RUTA_INGESTA = "/api/sensores/ingesta";
 const char* LOTE_ID      = "Lote-001";
 
@@ -150,8 +152,16 @@ void actualizarLecturas() {
 // ============================================================
 bool postLectura(const char* sensorId, const char* tipo, float valor, const char* unidad) {
   HTTPClient http;
+  WiFiClientSecure clienteSeguro;  // para https (backend en Coolify)
+  WiFiClient       clientePlano;   // para http  (backend local en la PC)
+
   String url = String(BACKEND_HOST) + RUTA_INGESTA;
-  http.begin(url);
+  if (url.startsWith("https://")) {
+    clienteSeguro.setInsecure();   // acepta el certificado TLS sin validar CA
+    http.begin(clienteSeguro, url);
+  } else {
+    http.begin(clientePlano, url);
+  }
   http.addHeader("Content-Type", "application/json");
 
   String cuerpo = "{";
