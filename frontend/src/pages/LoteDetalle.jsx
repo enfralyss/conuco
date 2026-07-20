@@ -15,24 +15,26 @@ import { api } from '../lib/api';
 // ── Solo Lote-001 tiene sensores IoT en vivo ──────────────────────────────────
 const LOTE_CON_SENSORES = 'Lote-001';
 
+// estado: 'en_linea' | 'nodo_sin_senal' (backend ok, ESP32 sin enviar) | 'sin_conexion'
 function useIoTEnVivo(loteId) {
-  const [data, setData]         = useState([]);
-  const [conectado, setConectado] = useState(false);
+  const [data, setData]     = useState([]);
+  const [estado, setEstado] = useState('sin_conexion');
   const activo = loteId === LOTE_CON_SENSORES;
 
   useEffect(() => {
     if (!activo) return;
     api.get('/api/sensores/historial')
-      .then(h => { setData(h); setConectado(true); })
-      .catch(() => setConectado(false));
+      .then(h => setData(h))
+      .catch(() => setEstado('sin_conexion'));
   }, [activo]);
 
   useEffect(() => {
     if (!activo) return;
-    const id = setInterval(() => {
+    const consultar = () => {
       api.get('/api/sensores/lecturas')
         .then(l => {
-          setConectado(true);
+          setEstado(l.nodoEnLinea ? 'en_linea' : 'nodo_sin_senal');
+          if (!l.nodoEnLinea) return; // congela la gráfica en la última lectura real
           setData(prev => [...prev.slice(-14), {
             time:        new Date(l.timestamp).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
             temperatura: l.temperatura,
@@ -40,12 +42,14 @@ function useIoTEnVivo(loteId) {
             ambiental:   l.ambiental,
           }]);
         })
-        .catch(() => setConectado(false));
-    }, 5000);
+        .catch(() => setEstado('sin_conexion'));
+    };
+    consultar();
+    const id = setInterval(consultar, 5000);
     return () => clearInterval(id);
   }, [activo]);
 
-  return { data, conectado, activo };
+  return { data, estado, conectado: estado === 'en_linea', activo };
 }
 
 // ── Configuración visual ──────────────────────────────────────────────────────
@@ -210,7 +214,7 @@ export default function LoteDetalle() {
   const [cargando, setCargando]   = useState(true);
   const [error, setError]         = useState('');
 
-  const { data: iotData, conectado, activo: tieneIoT } = useIoTEnVivo(id);
+  const { data: iotData, estado, conectado, activo: tieneIoT } = useIoTEnVivo(id);
   const ultima = iotData.at(-1) ?? null;
 
   useEffect(() => {
@@ -305,9 +309,13 @@ export default function LoteDetalle() {
           <div className="flex items-center gap-2 flex-wrap">
             {tieneIoT && (
               <>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-green-50 text-green-700">
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold ${
+                  conectado ? 'bg-green-50 text-green-700'
+                  : estado === 'nodo_sin_senal' ? 'bg-amber-50 text-amber-700'
+                  : 'bg-red-50 text-red-700'
+                }`}>
                   {conectado ? <Wifi size={13} /> : <WifiOff size={13} />}
-                  {conectado ? 'IoT en vivo' : 'Sin señal'}
+                  {conectado ? 'IoT en vivo' : estado === 'nodo_sin_senal' ? 'Nodo sin señal' : 'Sin conexión'}
                 </span>
                 <button onClick={handleExport}
                   className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow-md cursor-pointer"

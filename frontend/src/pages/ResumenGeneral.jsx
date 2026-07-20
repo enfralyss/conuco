@@ -5,23 +5,29 @@ import { api } from '../lib/api';
 import { SENSOR_AMBIENTAL, ambFueraDeIdeal, ambFueraDeCritico, formatoAmbiental } from '../config/sensorAmbiental';
 
 // ── Hook: datos IoT desde el backend ─────────────────────────────────────────
+// estado: 'en_linea'       → backend responde y el nodo envió hace <20s
+//         'nodo_sin_senal' → backend responde pero el ESP32 dejó de enviar
+//         'sin_conexion'   → el backend no responde
 function useIoTData() {
   const [data, setData] = useState([]);
-  const [conectado, setConectado] = useState(false);
+  const [estado, setEstado] = useState('sin_conexion');
 
   // Carga historial inicial al montar
   useEffect(() => {
     api.get('/api/sensores/historial')
-      .then(hist => { setData(hist); setConectado(true); })
-      .catch(() => setConectado(false));
+      .then(hist => setData(hist))
+      .catch(() => setEstado('sin_conexion'));
   }, []);
 
   // Polling cada 5s para la última lectura
   useEffect(() => {
-    const interval = setInterval(() => {
+    const consultar = () => {
       api.get('/api/sensores/lecturas')
         .then(lectura => {
-          setConectado(true);
+          setEstado(lectura.nodoEnLinea ? 'en_linea' : 'nodo_sin_senal');
+          // Con el nodo caído no se agregan puntos: la gráfica se congela
+          // en la última lectura real en vez de repetir el mismo valor.
+          if (!lectura.nodoEnLinea) return;
           setData(prev => {
             const punto = {
               time:        new Date(lectura.timestamp).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
@@ -32,13 +38,21 @@ function useIoTData() {
             return [...prev.slice(-14), punto];
           });
         })
-        .catch(() => setConectado(false));
-    }, 5000);
+        .catch(() => setEstado('sin_conexion'));
+    };
+    consultar();
+    const interval = setInterval(consultar, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  return { data, conectado };
+  return { data, estado };
 }
+
+const CONEXION_UI = {
+  en_linea:       { ping: 'bg-green-400', dot: 'bg-green-500', texto: 'Sensores Conectados' },
+  nodo_sin_senal: { ping: 'bg-amber-400', dot: 'bg-amber-500', texto: 'Nodo sin señal' },
+  sin_conexion:   { ping: 'bg-red-400',   dot: 'bg-red-500',   texto: 'Sin conexión' },
+};
 
 function tendencia(data, key) {
   if (data.length < 3) return 'estable';
@@ -54,7 +68,8 @@ const TEND_ICON = {
 };
 
 export default function ResumenGeneral() {
-  const { data: sensorData, conectado } = useIoTData();
+  const { data: sensorData, estado } = useIoTData();
+  const conexion = CONEXION_UI[estado];
   const ultima = sensorData.at(-1) ?? { temperatura: 0, humedad: 0, ambiental: 0, time: '—' };
 
   const loteActivo = { id: 'Lote 001', cultivo: 'Maíz Amarillo', etapa: 'Siembra Tardía', diasSembrado: 65 };
@@ -85,10 +100,10 @@ export default function ResumenGeneral() {
           </span>
           <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 text-sm font-medium text-slate-600 shadow-sm">
             <span className="relative flex h-2.5 w-2.5">
-              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${conectado ? 'bg-green-400' : 'bg-red-400'}`} />
-              <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${conectado ? 'bg-green-500' : 'bg-red-500'}`} />
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${conexion.ping}`} />
+              <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${conexion.dot}`} />
             </span>
-            {conectado ? 'Sensores Conectados' : 'Sin señal'}
+            {conexion.texto}
           </span>
         </div>
       </div>
@@ -97,7 +112,7 @@ export default function ResumenGeneral() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <InfoStrip icono={<Sun size={15} />}          label="Etapa"         value={loteActivo.etapa}                   color="amber"  />
         <InfoStrip icono={<Wind size={15} />}         label="Días sembrado" value={`${loteActivo.diasSembrado} días`}  color="blue"   />
-        <InfoStrip icono={<Wifi size={15} />}         label="Sensores"      value="3 activos"                          color="green"  />
+        <InfoStrip icono={<Wifi size={15} />}         label="Sensores"      value={estado === 'en_linea' ? '3 activos' : 'Sin señal'} color={estado === 'en_linea' ? 'green' : 'red'} />
         <InfoStrip icono={<Clock size={15} />}        label="Última lectura" value={ultima.time}                        color="purple" />
       </div>
 
@@ -210,6 +225,7 @@ function InfoStrip({ icono, label, value, color }) {
     blue:   'bg-blue-50   text-blue-700',
     green:  'bg-green-50  text-green-700',
     purple: 'bg-purple-50 text-purple-700',
+    red:    'bg-red-50    text-red-700',
   };
   return (
     <div className={`flex items-center gap-2.5 px-4 py-3 rounded-xl ${colors[color]}`}>

@@ -45,12 +45,25 @@ if (SIMULADOR_ACTIVO) {
 }
 
 // ── Lecturas IoT (polling del dashboard) ─────────────────────────────────────
+// El nodo (ESP32 o simulador) envía cada 5s; con más de 20s sin lecturas
+// nuevas se reporta nodoEnLinea = false para que el panel marque "sin señal".
+const NODO_TIMEOUT_MS = 20000;
+
 app.get('/api/sensores/lecturas', (req, res) => {
+  const timestamps = [sensorTemp, sensorHum, sensorAmb]
+    .map(s => s.obtenerUltimaLectura()?.timestamp)
+    .filter(Boolean);
+  const ultimaLectura = timestamps.length
+    ? new Date(Math.max(...timestamps.map(t => t.getTime())))
+    : null;
+
   res.json({
-    timestamp:   new Date(),
-    temperatura: sensorTemp.obtenerUltimaLectura()?.valor || 0,
-    humedad:     sensorHum.obtenerUltimaLectura()?.valor  || 0,
-    ambiental:   sensorAmb.obtenerUltimaLectura()?.valor  || 0,
+    timestamp:     new Date(),
+    temperatura:   sensorTemp.obtenerUltimaLectura()?.valor || 0,
+    humedad:       sensorHum.obtenerUltimaLectura()?.valor  || 0,
+    ambiental:     sensorAmb.obtenerUltimaLectura()?.valor  || 0,
+    ultimaLectura,
+    nodoEnLinea:   ultimaLectura !== null && Date.now() - ultimaLectura.getTime() <= NODO_TIMEOUT_MS,
   });
 });
 
